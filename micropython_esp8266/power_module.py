@@ -1,5 +1,6 @@
 from machine import UART
 from time import sleep
+import json
 
 
 class pzem004t_v3():
@@ -68,7 +69,7 @@ class pzem004t_v3():
             return power_factor
         return None
 
-    def getDataAsDict(self):
-        return {"voltage": self.getVoltage(), "current": self.getCurrent(),
-                "power": self.getPower(), "energy": self.getEnergy(),
-                "freqency": self.getFrequency(), "power_factor": self.getPowerFactor()}
+    def getDataAsJson(self):
+        return json.dumps({"voltage": self.getVoltage(), "current": self.getCurrent(),
+                           "power": self.getPower(), "energy": self.getEnergy(),
+                           "freqency": self.getFrequency(), "power_factor": self.getPowerFactor()})
