@@ -1,0 +1,9 @@
+[Unit]
+Description=mining service that stores sensor data, automate mining operations. 
+After=mysqld.service
+
+[Service]
+ExecStart=/home/pi/mining/venv/bin/python3 /home/pi/mining/__init__.py
+
+[Install]
+WantedBy=multi-user.target

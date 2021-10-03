@@ -109,6 +109,7 @@ def sensorDataProcessing():
             except timeout:
                 if(power_state == True):
                     power_state = False
+                    relay_state = False
                     db.session.add(events(event_type="power off",
                                           event_datetime=datetime.now()))
                     db.session.commit()
