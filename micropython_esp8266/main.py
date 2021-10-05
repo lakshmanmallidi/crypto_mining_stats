@@ -32,3 +32,9 @@ while True:
     elif(message.decode() == "relayOff"):
         relayOff(relayPin)
         server_socket.sendto("relay off".encode(), address)
+    elif(message.decode() == "resetSensorEnergy"):
+        data = power_sensor.resetEnergy()
+        if(data == True):
+            server_socket.sendto("reset success".encode(), address)
+        else:
+            server_socket.sendto("reset failed".encode(), address)

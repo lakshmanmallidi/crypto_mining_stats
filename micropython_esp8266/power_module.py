@@ -4,6 +4,7 @@ import json
 
 
 class pzem004t_v3():
+    energy_reset = [0x01, 0x42, 0x80, 0x11]
     voltage = [0x01, 0x04, 0x00, 0x00, 0x00, 0x01, 0x31, 0xCA]
     current = [0x01, 0x04, 0x00, 0x01, 0x00, 0x02, 0x20, 0x0B]
     power = [0x01, 0x04, 0x00, 0x03, 0x00, 0x02, 0x81, 0xCB]
@@ -67,6 +68,17 @@ class pzem004t_v3():
         if(data != None):
             power_factor = 0.01*((256*data[3])+data[4])
             return power_factor
+        return None
+
+    def resetEnergy(self):
+        self.uart.write(bytes(pzem004t_v3.energy_reset))
+        sleep(0.1)
+        data = self.uart.read()
+        if(data != None):
+            if(data[1] == pzem004t_v3.energy_reset[1]):
+                return True
+            else:
+                return False
         return None
 
     def getDataAsJson(self):
