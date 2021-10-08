@@ -2,13 +2,15 @@ from logging import debug
 from flask import Flask, request
 from flask_restful import Resource, Api
 from flask_sqlalchemy import SQLAlchemy
+from flask_httpauth import HTTPBasicAuth
 from datetime import datetime
 from configparser import ConfigParser
 from os import path
 from socket import socket, AF_INET, SOCK_DGRAM, timeout
 from time import time, sleep
 from json import loads
-from threading import Thread, Timer
+from threading import Thread
+from hashlib import sha256
 
 config = ConfigParser()
 config.read(path.join(path.dirname(path.abspath(__file__)), 'config.ini'))
@@ -24,12 +26,16 @@ database_push_time = int(config.get('sensor', 'db_push_wait'))
 max_voltage = int(config.get('power_validations', 'max_voltage'))
 min_voltage = int(config.get('power_validations', 'min_voltage'))
 max_current = int(config.get('power_validations', 'max_current'))
+flask_host = config.get('flask_server', 'ip')
+flask_port = int(config.get('flask_server', 'port'))
+password_hash = config.get("api_auth", "password_hash")
 
 app = Flask(__name__)
 api = Api(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mariadb+mariadbconnector://{}:{}@{}:3306/{}' \
     .format(user, passwd, host, database)
 db = SQLAlchemy(app)
+auth = HTTPBasicAuth()
 client_socket = socket(AF_INET, SOCK_DGRAM)
 client_socket.settimeout(4)
 last_push_time = time()
@@ -195,7 +201,15 @@ def sensorDataProcessing():
         sleep(1)
 
 
+@auth.verify_password
+def verify_password(username, password):
+    if(sha256(password.encode("utf-8")).hexdigest() == password_hash):
+        return True
+    return False
+
+
 class softSwitchController(Resource):
+    @auth.login_required
     def get(self, state):
         try:
             if(state == "on"):
@@ -210,6 +224,7 @@ class softSwitchController(Resource):
 
 
 class getStateController(Resource):
+    @auth.login_required
     def get(self, type):
         try:
             if(type == "power"):
@@ -225,6 +240,7 @@ class getStateController(Resource):
 
 
 class energyResetController(Resource):
+    @auth.login_required
     def get(self):
         try:
             msg = energyReset()
@@ -242,5 +258,5 @@ db.create_all()
 api.add_resource(softSwitchController, '/soft-switch/<state>')
 api.add_resource(getStateController, '/state/<type>')
 api.add_resource(energyResetController, '/energy-reset')
-Thread(target=app.run, args=()).start()
+Thread(target=app.run, args=(flask_host, flask_port)).start()
 sensorDataProcessing()

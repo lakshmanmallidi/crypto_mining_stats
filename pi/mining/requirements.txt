@@ -1,4 +1,5 @@
 flask-restful
 flask-sqlalchemy
+flask-httpauth
 greenlet
 mariadb
