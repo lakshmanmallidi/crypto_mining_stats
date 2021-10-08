@@ -13,6 +13,10 @@ def relayOff(relayPin):
     relayPin.on()
 
 
+def getPinValue(relayPin):
+    return relayPin.value()
+
+
 os.dupterm(None, 1)
 relayPin = machine.Pin(5, machine.Pin.OUT)
 relayOff(relayPin)
@@ -32,9 +36,14 @@ while True:
     elif(message.decode() == "relayOff"):
         relayOff(relayPin)
         server_socket.sendto("relay off".encode(), address)
+    elif(message.decode() == "getRelayState"):
+        val = getPinValue(relayPin)
+        server_socket.sendto(str(val).encode(), address)
     elif(message.decode() == "resetSensorEnergy"):
         data = power_sensor.resetEnergy()
         if(data == True):
             server_socket.sendto("reset success".encode(), address)
         else:
             server_socket.sendto("reset failed".encode(), address)
+    else:
+        server_socket.sendto(message, address)
