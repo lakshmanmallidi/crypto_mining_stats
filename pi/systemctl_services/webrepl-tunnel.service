@@ -1,0 +1,11 @@
+[Unit]
+Description=AutoSSH tunnel service Remote port 6628 to nodemcu 8266
+After=network.target
+
+[Service]
+User=pi
+Environment="AUTOSSH_GATETIME=0"
+ExecStart=/usr/bin/autossh -o "ServerAliveInterval 60" -o "ServerAliveCountMax 3" -M 20015 -N -R 6628:192.168.43.107:8266 ubuntu@ec2-3-15-194-100.us-east-2.compute.amazonaws.com
+
+[Install]
+WantedBy=multi-user.target

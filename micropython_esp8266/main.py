@@ -6,10 +6,15 @@ import socket
 
 
 def relayOn(relayPin):
+    if not os.path.exists("idx"):
+        with open("idx", "w"):
+            pass
     relayPin.off()
 
 
 def relayOff(relayPin):
+    if os.path.exists("idx"):
+        os.remove("idx")
     relayPin.on()
 
 
@@ -19,7 +24,10 @@ def getPinValue(relayPin):
 
 os.dupterm(None, 1)
 relayPin = machine.Pin(5, machine.Pin.OUT)
-relayOff(relayPin)
+if(os.path.exists("idx")):
+    relayOn(relayPin)
+else:
+    relayOff(relayPin)
 ConnectWiFi.connect()
 power_sensor = pzem004t_v3()
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
