@@ -5,17 +5,25 @@ from power_module import pzem004t_v3
 import socket
 
 
+def isFileExists():
+    try:
+        open("idx", "r")
+        return True
+    except OSError:
+        return False
+
+
 def relayOn(relayPin):
-    if not os.path.exists("idx"):
+    if(not isFileExists()):
         with open("idx", "w"):
             pass
-    relayPin.off()
+    relayPin.on()
 
 
 def relayOff(relayPin):
-    if os.path.exists("idx"):
+    if(isFileExists()):
         os.remove("idx")
-    relayPin.on()
+    relayPin.off()
 
 
 def getPinValue(relayPin):
@@ -24,7 +32,7 @@ def getPinValue(relayPin):
 
 os.dupterm(None, 1)
 relayPin = machine.Pin(5, machine.Pin.OUT)
-if(os.path.exists("idx")):
+if(isFileExists()):
     relayOn(relayPin)
 else:
     relayOff(relayPin)
