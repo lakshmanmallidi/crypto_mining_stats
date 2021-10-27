@@ -28,15 +28,21 @@ is_running = True
 
 
 def relayOn():
-    client_socket.sendto("relayOn".encode(), (sensor_ip, sensor_port))
-    client_socket.recvfrom(1024)
-    client.publish("events", payload=dumps({"event": "relay on"}), qos=1)
+    try:
+        client_socket.sendto("relayOn".encode(), (sensor_ip, sensor_port))
+        client_socket.recvfrom(1024)
+        client.publish("events", payload=dumps({"event": "relay on"}), qos=1)
+    except timeout:
+        logr.warning("nodemcu powered off")
 
 
 def relayOff():
-    client_socket.sendto("relayOff".encode(), (sensor_ip, sensor_port))
-    client_socket.recvfrom(1024)
-    client.publish("events", payload=dumps({"event": "relay off"}), qos=1)
+    try:
+        client_socket.sendto("relayOff".encode(), (sensor_ip, sensor_port))
+        client_socket.recvfrom(1024)
+        client.publish("events", payload=dumps({"event": "relay off"}), qos=1)
+    except timeout:
+        logr.warning("nodemcu powered off")
 
 
 def powerOn():
@@ -95,7 +101,7 @@ def resetMiner():
         client.publish("reset/status",
                        payload=dumps({"device": "miner", "status": "success"}), qos=2)
     except Exception as e:
-        logr.warning(e)
+        logr.warning(str(e))
         client.publish("reset/status",
                        payload=dumps({"device": "miner", "status": "failed"}), qos=2)
     finally:
@@ -103,31 +109,39 @@ def resetMiner():
 
 
 def resetEnergy():
-    client_socket.sendto("resetSensorEnergy".encode(),
-                         (sensor_ip, sensor_port))
-    message, _ = client_socket.recvfrom(1024)
-    if(message.decode() == "reset success"):
-        client.publish("events", payload=dumps(
-            {"event": "reset energy"}), qos=1)
+    try:
+        client_socket.sendto("resetSensorEnergy".encode(),
+                             (sensor_ip, sensor_port))
+        message, _ = client_socket.recvfrom(1024)
+        if(message.decode() == "reset success"):
+            client.publish("events", payload=dumps(
+                {"event": "reset energy"}), qos=1)
+            client.publish("reset/status",
+                           payload=dumps({"device": "energy", "status": "success"}), qos=2)
+        else:
+            client.publish("reset/status",
+                           payload=dumps({"device": "energy", "status": "failed"}), qos=2)
+    except timeout:
         client.publish("reset/status",
-                       payload=dumps({"device": "energy", "status": "success"}), qos=2)
-    else:
-        client.publish("reset/status",
-                       payload=dumps({"device": "energy", "status": "failed"}), qos=2)
+                       payload=dumps({"device": "energy", "status": "power off"}), qos=2)
 
 
 def resetNodeMcu():
-    client_socket.sendto("rebootDevice".encode(),
-                         (sensor_ip, sensor_port))
-    message, _ = client_socket.recvfrom(1024)
-    if(message.decode() == "rebooting"):
-        client.publish("events", payload=dumps(
-            {"event": "reset nodemcu"}), qos=1)
+    try:
+        client_socket.sendto("rebootDevice".encode(),
+                             (sensor_ip, sensor_port))
+        message, _ = client_socket.recvfrom(1024)
+        if(message.decode() == "rebooting"):
+            client.publish("events", payload=dumps(
+                {"event": "reset nodemcu"}), qos=1)
+            client.publish("reset/status",
+                           payload=dumps({"device": "nodemcu", "status": "success"}), qos=2)
+        else:
+            client.publish("reset/status",
+                           payload=dumps({"device": "nodemcu", "status": "failed"}), qos=2)
+    except timeout:
         client.publish("reset/status",
-                       payload=dumps({"device": "nodemcu", "status": "success"}), qos=2)
-    else:
-        client.publish("reset/status",
-                       payload=dumps({"device": "nodemcu", "status": "failed"}), qos=2)
+                       payload=dumps({"device": "energy", "status": "power off"}), qos=2)
 
 
 def resetPi():
@@ -161,7 +175,7 @@ def sensorDataProcessing():
                 if(prev_pwr_state):
                     powerOff()
             except Exception as e:
-                print(e)
+                logr.error(str(e))
             prev_time = time()
         sleep(1)
 
@@ -172,28 +186,31 @@ def on_connect(client, userdata, flags, rc):
                        payload=dumps({"status": "online"}), qos=2, retain=True)
         client.subscribe("reset", qos=2)
         client.subscribe("state/relay", qos=2)
-        #Thread(target=sensorDataProcessing, args=()).start()
+        Thread(target=sensorDataProcessing, args=()).start()
     else:
         logr.warning("unable to connect to mqtt broker")
 
 
 def on_message(client, userdata, msg):
-    if(msg.topic == "reset"):
-        payload = loads(msg.payload.decode())
-        if(payload["device"] == "energy"):
-            resetEnergy()
-        elif(payload["device"] == "miner"):
-            resetMiner()
-        elif(payload["device"] == "nodemcu"):
-            resetNodeMcu()
-        elif(payload["device"] == "pi"):
-            resetPi()
-    elif(msg.topic == "state/relay"):
-        payload = loads(msg.payload.decode())
-        if(payload["status"] == "on"):
-            relayOn()
-        elif(payload["status"] == "off"):
-            relayOff()
+    try:
+        if(msg.topic == "reset"):
+            payload = loads(msg.payload.decode())
+            if(payload["device"] == "energy"):
+                resetEnergy()
+            elif(payload["device"] == "miner"):
+                resetMiner()
+            elif(payload["device"] == "nodemcu"):
+                resetNodeMcu()
+            elif(payload["device"] == "pi"):
+                resetPi()
+        elif(msg.topic == "state/relay"):
+            payload = loads(msg.payload.decode())
+            if(payload["status"] == "on"):
+                relayOn()
+            elif(payload["status"] == "off"):
+                relayOff()
+    except Exception as e:
+        logr.error(str(e))
 
 
 try:
