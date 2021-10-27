@@ -16,8 +16,8 @@ mqtt_passwd = config.get('mqtt_broker', 'password')
 keep_alive_intervel = config.get('mqtt_broker', 'keep_alive_intervel')
 sensor_ip = config.get('sensor', 'ip')
 sensor_port = int(config.get('sensor', 'port'))
-miner_ip = config.get('sensor', 'ip')
-miner_port = int(config.get('sensor', 'port'))
+miner_ip = config.get('miner', 'ip')
+miner_port = int(config.get('miner', 'port'))
 sampling_time = int(config.get('sensor', 'sampling_time'))
 database_push_time = int(config.get('sensor', 'db_push_wait'))
 prev_pwr_state = True
@@ -78,7 +78,8 @@ def getMinerLog():
         log = miner_socket.recv(10240).decode()
         return log
     except Exception as e:
-        return e
+        logr.warning(e)
+        return "error in reading miner log"
     finally:
         miner_socket.close()
 
