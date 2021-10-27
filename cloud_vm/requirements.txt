@@ -1,4 +1,4 @@
 flask
 flask-sqlalchemy
 mariadb
-paho-mqtts
+paho-mqtt
