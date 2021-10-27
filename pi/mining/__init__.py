@@ -1,131 +1,58 @@
-from logging import debug
-from flask import Flask, request
-from flask_restful import Resource, Api
-from flask_sqlalchemy import SQLAlchemy
-from flask_httpauth import HTTPBasicAuth
 from datetime import datetime
 from configparser import ConfigParser
-from os import path
+from os import path, system
 from socket import socket, AF_INET, SOCK_DGRAM, timeout
 from time import time, sleep
-from json import loads
+from json import loads, dumps
 from threading import Thread
-from hashlib import sha256
+import paho.mqtt.client as mqtt
+from logger import get_logger
 
 config = ConfigParser()
 config.read(path.join(path.dirname(path.abspath(__file__)), 'config.ini'))
-host = config.get('mariadb', 'host')
-user = config.get('mariadb', 'user')
-passwd = config.get('mariadb', 'passwd')
-database = config.get('mariadb', 'database')
+mqtt_host = config.get('mqtt_broker', 'host')
+mqtt_user = config.get('mqtt_broker', 'user')
+mqtt_passwd = config.get('mqtt_broker', 'password')
+keep_alive_intervel = config.get('mqtt_broker', 'keep_alive_intervel')
 sensor_ip = config.get('sensor', 'ip')
 sensor_port = int(config.get('sensor', 'port'))
+miner_ip = config.get('sensor', 'ip')
+miner_port = int(config.get('sensor', 'port'))
 sampling_time = int(config.get('sensor', 'sampling_time'))
-power_on_wait_time = int(config.get('sensor', 'power_on_wait'))
 database_push_time = int(config.get('sensor', 'db_push_wait'))
-max_voltage = int(config.get('power_validations', 'max_voltage'))
-min_voltage = int(config.get('power_validations', 'min_voltage'))
-max_current = int(config.get('power_validations', 'max_current'))
-flask_host = config.get('flask_server', 'ip')
-flask_port = int(config.get('flask_server', 'port'))
-password_hash = config.get("api_auth", "password_hash")
-
-app = Flask(__name__)
-api = Api(app)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mariadb+mariadbconnector://{}:{}@{}:3306/{}' \
-    .format(user, passwd, host, database)
-db = SQLAlchemy(app)
-auth = HTTPBasicAuth()
+prev_pwr_state = True
 client_socket = socket(AF_INET, SOCK_DGRAM)
 client_socket.settimeout(4)
-last_push_time = time()
-
-
-class stats(db.Model):
-    voltage = db.Column(db.Float)
-    current = db.Column(db.Float)
-    power = db.Column(db.Float)
-    energy = db.Column(db.Float)
-    stat_datetime = db.Column(db.DateTime, primary_key=True)
-
-
-class events(db.Model):
-    event_sequence = db.Column(
-        db.Integer, primary_key=True, autoincrement=True)
-    event_type = db.Column(db.String(15), nullable=False)
-    event_log = db.Column(db.String(30))
-    event_datetime = db.Column(db.DateTime, nullable=False)
+logr = get_logger(__file__)
+is_running = True
 
 
 def relayOn():
     client_socket.sendto("relayOn".encode(), (sensor_ip, sensor_port))
     client_socket.recvfrom(1024)
-    db.session.add(events(event_type="relay on",
-                          event_datetime=datetime.now()))
-    db.session.commit()
+    client.publish("events", payload=dumps({"event": "relay on"}), qos=1)
 
 
 def relayOff():
     client_socket.sendto("relayOff".encode(), (sensor_ip, sensor_port))
     client_socket.recvfrom(1024)
-    db.session.add(events(event_type="relay off",
-                          event_datetime=datetime.now()))
-    db.session.commit()
-
-
-def getRelayState():
-    client_socket.sendto("getRelayState".encode(), (sensor_ip, sensor_port))
-    message, _ = client_socket.recvfrom(1024)
-    if(message.decode() == "1"):
-        return False
-    else:
-        return True
-
-
-def softSwitchOn():
-    client_socket.sendto("relayOn".encode(), (sensor_ip, sensor_port))
-    client_socket.recvfrom(1024)
-    db.session.add(events(event_type="soft switch on",
-                          event_datetime=datetime.now()))
-    db.session.commit()
-
-
-def softSwitchOff():
-    client_socket.sendto("relayOff".encode(), (sensor_ip, sensor_port))
-    client_socket.recvfrom(1024)
-    db.session.add(events(event_type="soft switch off",
-                          event_datetime=datetime.now()))
-    db.session.commit()
-
-
-def getPrevSftSwitchState():
-    evnt = events.query.filter(events.event_type.startswith("soft switch")).order_by(
-        events.event_datetime.desc()).first()
-    if(evnt != None):
-        if evnt.event_type == "soft switch on":
-            return True
-    return False
-
-
-def getPrevPwrState():
-    evnt = events.query.filter(events.event_type.startswith("power")).order_by(
-        events.event_datetime.desc()).first()
-    if(evnt != None):
-        if evnt.event_type == "power on":
-            return True
-    return False
+    client.publish("events", payload=dumps({"event": "relay off"}), qos=1)
 
 
 def powerOn():
-    db.session.add(events(event_type="power on",
-                   event_datetime=datetime.now()))
-    db.session.commit()
+    global prev_pwr_state
+    prev_pwr_state = True
+    client.publish("state/power",
+                   payload=dumps({"status": "on"}), qos=2, retain=True)
+    client.publish("events", payload=dumps({"event": "power on"}), qos=1)
 
 
 def powerOff():
-    db.session.add(events(event_type="power off",
-                   event_datetime=datetime.now()))
-    db.session.commit()
+    global prev_pwr_state
+    prev_pwr_state = False
+    client.publish("state/power",
+                   payload=dumps({"status": "off"}), qos=2, retain=True)
+    client.publish("events", payload=dumps({"event": "power off"}), qos=1)
 
 
 def getSensorData():
@@ -135,65 +62,103 @@ def getSensorData():
     return loads(message.decode())
 
 
-def storeSensorData(sensor_data):
-    global last_push_time
-    if(time()-last_push_time > database_push_time):
-        db.session.add(stats(voltage=sensor_data["voltage"],
-                             current=sensor_data["current"],
-                             power=sensor_data["power"],
-                             energy=sensor_data["energy"],
-                             stat_datetime=datetime.now()))
-        db.session.commit()
-        last_push_time = time()
+def getMinerLog():
+    miner_socket = socket()
+    try:
+        miner_socket.connect((miner_ip, miner_port))
+        sleep(1)
+        miner_socket.sendall("estats".encode())
+        sleep(2)
+        log = miner_socket.recv(10240).decode()
+        return log
+    except Exception as e:
+        return e
+    finally:
+        miner_socket.close()
 
 
-def validateSensorData(sensor_data):
-    if(sensor_data["voltage"] > min_voltage and sensor_data["voltage"] < max_voltage):
-        if(sensor_data["current"] < max_current):
-            return {"status": True}
-        else:
-            return {"status": False, "event_type": "over current", "event_log": "current: "+str(sensor_data["current"])}
-    else:
-        if(sensor_data["voltage"] < min_voltage):
-            return {"status": False, "event_type": "low voltage", "event_log": "voltage: "+str(sensor_data["voltage"])}
-        else:
-            return {"status": False, "event_type": "high voltage", "event_log": "voltage: "+str(sensor_data["voltage"])}
+def publishData(sensor_data, miner_lg):
+    data = {'voltage': sensor_data["voltage"], 'current': sensor_data["current"],
+            'power': sensor_data["power"], 'energy': sensor_data["energy"],
+            'miner_log': miner_lg}
+    client.publish("stats", payload=dumps(data), qos=1)
 
 
-def energyReset():
+def resetMiner():
+    miner_socket = socket()
+    try:
+        miner_socket.connect((miner_ip, miner_port))
+        sleep(1)
+        miner_socket.sendall("ascset|0,reboot,0".encode())
+        client.publish("events", payload=dumps(
+            {"event": "reset miner"}), qos=1)
+        client.publish("reset/status",
+                       payload=dumps({"device": "miner", "status": "success"}), qos=2)
+    except Exception as e:
+        logr.warning(e)
+        client.publish("reset/status",
+                       payload=dumps({"device": "miner", "status": "failed"}), qos=2)
+    finally:
+        miner_socket.close()
+
+
+def resetEnergy():
     client_socket.sendto("resetSensorEnergy".encode(),
                          (sensor_ip, sensor_port))
     message, _ = client_socket.recvfrom(1024)
-    db.session.add(events(event_type="energy reset",
-                          event_datetime=datetime.now()))
-    db.session.commit()
-    return message.decode()
+    if(message.decode() == "reset success"):
+        client.publish("events", payload=dumps(
+            {"event": "reset energy"}), qos=1)
+        client.publish("reset/status",
+                       payload=dumps({"device": "energy", "status": "success"}), qos=2)
+    else:
+        client.publish("reset/status",
+                       payload=dumps({"device": "energy", "status": "failed"}), qos=2)
+
+
+def resetNodeMcu():
+    client_socket.sendto("rebootDevice".encode(),
+                         (sensor_ip, sensor_port))
+    message, _ = client_socket.recvfrom(1024)
+    if(message.decode() == "rebooting"):
+        client.publish("events", payload=dumps(
+            {"event": "reset nodemcu"}), qos=1)
+        client.publish("reset/status",
+                       payload=dumps({"device": "nodemcu", "status": "success"}), qos=2)
+    else:
+        client.publish("reset/status",
+                       payload=dumps({"device": "nodemcu", "status": "failed"}), qos=2)
+
+
+def resetPi():
+    global is_running
+    client.publish("events", payload=dumps(
+        {"event": "reset pi"}), qos=1)
+    client.publish("reset/status",
+                   payload=dumps({"device": "pi", "status": "success"}), qos=2)
+    client.publish("pi",
+                   payload=dumps({"status": "offline"}), qos=2, retain=True)
+    is_running = False
+    client.disconnect()
+    sleep(10)
 
 
 def sensorDataProcessing():
+    global prev_pwr_state, is_running
     prev_time = time()
-    while True:
+    last_push_time = time()
+    while is_running:
         if(time()-prev_time > sampling_time):
             try:
                 sensor_data = getSensorData()
-                if(not getPrevPwrState()):
+                if(not prev_pwr_state):
                     powerOn()
-                    sleep(power_on_wait_time)
-                storeSensorData(sensor_data)
-                sensorValidation = validateSensorData(sensor_data)
-                if((not sensorValidation["status"]) and getRelayState()):
-                    db.session.add(events(event_type=sensorValidation["event_type"],
-                                          event_log=sensorValidation["event_log"],
-                                          event_datetime=datetime.now()))
-                    db.session.commit()
-                    relayOff()
-
-                if(sensorValidation["status"] and (not getRelayState())
-                   and getPrevSftSwitchState()):
-                    relayOn()
-
+                if(time()-last_push_time > database_push_time):
+                    miner_lg = getMinerLog()
+                    publishData(sensor_data, miner_lg)
+                    last_push_time = time()
             except timeout:
-                if(getPrevPwrState()):
+                if(prev_pwr_state):
                     powerOff()
             except Exception as e:
                 print(e)
@@ -201,62 +166,47 @@ def sensorDataProcessing():
         sleep(1)
 
 
-@auth.verify_password
-def verify_password(username, password):
-    if(sha256(password.encode("utf-8")).hexdigest() == password_hash):
-        return True
-    return False
+def on_connect(client, userdata, flags, rc):
+    if(rc == 0):
+        client.publish("pi",
+                       payload=dumps({"status": "online"}), qos=2, retain=True)
+        client.subscribe("reset", qos=2)
+        client.subscribe("state/relay", qos=2)
+        #Thread(target=sensorDataProcessing, args=()).start()
+    else:
+        logr.warning("unable to connect to mqtt broker")
 
 
-class softSwitchController(Resource):
-    @auth.login_required
-    def get(self, state):
-        try:
-            if(state == "on"):
-                softSwitchOn()
-            else:
-                softSwitchOff()
-            return {"status": "success"}, 200
-        except timeout:
-            return {"status": "device power off"}, 500
-        except Exception:
-            return {"status": "failed"}, 500
+def on_message(client, userdata, msg):
+    if(msg.topic == "reset"):
+        payload = loads(msg.payload.decode())
+        if(payload["device"] == "energy"):
+            resetEnergy()
+        elif(payload["device"] == "miner"):
+            resetMiner()
+        elif(payload["device"] == "nodemcu"):
+            resetNodeMcu()
+        elif(payload["device"] == "pi"):
+            resetPi()
+    elif(msg.topic == "state/relay"):
+        payload = loads(msg.payload.decode())
+        if(payload["status"] == "on"):
+            relayOn()
+        elif(payload["status"] == "off"):
+            relayOff()
 
 
-class getStateController(Resource):
-    @auth.login_required
-    def get(self, type):
-        try:
-            if(type == "power"):
-                return {"status": "success", "state": str(getPrevPwrState())}, 200
-            elif(type == "relay"):
-                return {"status": "success", "state": str(getRelayState())}, 200
-            elif(type == "soft-switch"):
-                return {"status": "success", "state": str(getPrevSftSwitchState())}, 200
-            else:
-                return {"status": "failed"}, 404
-        except Exception:
-            return {"status": "failed"}, 500
-
-
-class energyResetController(Resource):
-    @auth.login_required
-    def get(self):
-        try:
-            msg = energyReset()
-            if(msg == "reset success"):
-                return {"status": "success"}, 200
-            else:
-                return {"status": "error during reset"}, 500
-        except timeout:
-            return {"status": "device power off"}, 500
-        except Exception:
-            return {"status": "failed"}, 500
-
-
-db.create_all()
-api.add_resource(softSwitchController, '/soft-switch/<state>')
-api.add_resource(getStateController, '/state/<type>')
-api.add_resource(energyResetController, '/energy-reset')
-Thread(target=app.run, args=(flask_host, flask_port)).start()
-sensorDataProcessing()
+try:
+    client = mqtt.Client(mqtt_user)
+    client.username_pw_set(mqtt_user, mqtt_passwd)
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.will_set("pi",
+                    payload=dumps({"status": "offline"}), qos=2, retain=True)
+    client.connect(host=mqtt_host, port=1883,
+                   keepalive=int(keep_alive_intervel))
+    client.loop_forever()
+    if(is_running == False):
+        system("reboot")
+except Exception as e:
+    logr.error(str(e))

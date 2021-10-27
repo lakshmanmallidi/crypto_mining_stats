@@ -2,3 +2,5 @@ venv
 *.sqlite3
 *.ini
 *.ind
+*.pyc
+*.log

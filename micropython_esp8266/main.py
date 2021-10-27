@@ -61,5 +61,8 @@ while True:
             server_socket.sendto("reset success".encode(), address)
         else:
             server_socket.sendto("reset failed".encode(), address)
+    elif(message.decode() == "rebootDevice"):
+        server_socket.sendto("rebooting".encode(), address)
+        machine.reset()
     else:
         server_socket.sendto(message, address)
