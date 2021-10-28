@@ -42,8 +42,8 @@ class events(db.Model):
 
 def on_connect(client, userdata, flags, rc):
     if(rc == 0):
-        client.subscribe("events", qos=1)
-        client.subscribe("stats", qos=1)
+        client.subscribe("events", qos=2)
+        client.subscribe("stats", qos=2)
     else:
         print("unable to connect to mqtt broker")
 
