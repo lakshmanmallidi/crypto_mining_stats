@@ -5,6 +5,7 @@ from configparser import ConfigParser
 from os import path
 from json import loads
 import paho.mqtt.client as mqtt
+from time import sleep
 
 config = ConfigParser()
 config.read(path.join(path.dirname(path.abspath(__file__)), 'config.ini'))
@@ -66,6 +67,7 @@ def on_message(client, userdata, msg):
             db.session.commit()
     except Exception as e:
         print(str(e))
+    sleep(2)
 
 
 try:
