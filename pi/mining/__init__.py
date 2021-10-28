@@ -169,7 +169,10 @@ def sensorDataProcessing():
                 if(not prev_pwr_state):
                     powerOn()
                 if(time()-last_push_time > database_push_time):
-                    miner_lg = getMinerLog()
+                    if(prev_pwr_state == True):
+                        miner_lg = getMinerLog()
+                    else:
+                        miner_lg = "miner powered off"
                     publishData(sensor_data, miner_lg)
                     last_push_time = time()
             except timeout:
