@@ -222,7 +222,7 @@ def on_message(client, userdata, msg):
 
 
 try:
-    client = mqtt.Client(mqtt_user)
+    client = mqtt.Client("raspi")
     client.username_pw_set(mqtt_user, mqtt_passwd)
     client.on_connect = on_connect
     client.on_message = on_message
