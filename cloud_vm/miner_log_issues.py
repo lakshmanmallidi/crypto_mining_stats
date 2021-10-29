@@ -20,11 +20,14 @@ def check_echu_issue(log):
     if(log != "error in reading miner log"):
         if(log[log.find("ECHU["):(log.find("ECMM[")-1)] != "ECHU[0 0 131073]"):
             if(echu_issue == False):
-                client.publish("issues",
-                               payload=dumps({"issue": "ECHU", "datetime": str(datetime.now())}), qos=2)
+                client.publish("issues/ECHU",
+                               payload=dumps({"status": True, "datetime": str(datetime.now())}), qos=2)
                 echu_issue = True
         else:
-            echu_issue = False
+            if(echu_issue == True):
+                client.publish("issues/ECHU",
+                               payload=dumps({"status": False, "datetime": str(datetime.now())}), qos=2)
+                echu_issue = False
 
 
 def on_connect(client, userdata, flags, rc):
