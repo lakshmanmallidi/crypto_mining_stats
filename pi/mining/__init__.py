@@ -156,7 +156,7 @@ def resetPi():
     client.publish("reset/status",
                    payload=dumps({"device": "pi", "status": "success", "datetime": str(datetime.now())}), qos=2)
     client.publish("pi",
-                   payload=dumps({"status": "offline", "datetime": str(datetime.now())}), qos=2, retain=True)
+                   payload=dumps({"status": "offline"}), qos=2, retain=True)
     is_running = False
     client.disconnect()
     sleep(10)
