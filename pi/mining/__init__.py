@@ -31,7 +31,8 @@ def relayOn():
     try:
         client_socket.sendto("relayOn".encode(), (sensor_ip, sensor_port))
         client_socket.recvfrom(1024)
-        client.publish("events", payload=dumps({"event": "relay on"}), qos=1)
+        client.publish("events", payload=dumps(
+            {"event": "relay on", "datetime": str(datetime.now())}), qos=2)
     except timeout:
         logr.warning("nodemcu powered off")
 
@@ -40,7 +41,8 @@ def relayOff():
     try:
         client_socket.sendto("relayOff".encode(), (sensor_ip, sensor_port))
         client_socket.recvfrom(1024)
-        client.publish("events", payload=dumps({"event": "relay off"}), qos=1)
+        client.publish("events", payload=dumps(
+            {"event": "relay off", "datetime": str(datetime.now())}), qos=2)
     except timeout:
         logr.warning("nodemcu powered off")
 
@@ -49,16 +51,18 @@ def powerOn():
     global prev_pwr_state
     prev_pwr_state = True
     client.publish("state/power",
-                   payload=dumps({"status": "on"}), qos=2, retain=True)
-    client.publish("events", payload=dumps({"event": "power on"}), qos=1)
+                   payload=dumps({"status": "on", "datetime": str(datetime.now())}), qos=2, retain=True)
+    client.publish("events", payload=dumps(
+        {"event": "power on", "datetime": str(datetime.now())}), qos=2)
 
 
 def powerOff():
     global prev_pwr_state
     prev_pwr_state = False
     client.publish("state/power",
-                   payload=dumps({"status": "off"}), qos=2, retain=True)
-    client.publish("events", payload=dumps({"event": "power off"}), qos=1)
+                   payload=dumps({"status": "off", "datetime": str(datetime.now())}), qos=2, retain=True)
+    client.publish("events", payload=dumps(
+        {"event": "power off", "datetime": str(datetime.now())}), qos=2)
 
 
 def getSensorData():
@@ -87,8 +91,8 @@ def getMinerLog():
 def publishData(sensor_data, miner_lg):
     data = {'voltage': sensor_data["voltage"], 'current': sensor_data["current"],
             'power': sensor_data["power"], 'energy': sensor_data["energy"],
-            'miner_log': miner_lg}
-    client.publish("stats", payload=dumps(data), qos=1)
+            'miner_log': miner_lg, "datetime": str(datetime.now())}
+    client.publish("stats", payload=dumps(data), qos=2)
 
 
 def resetMiner():
@@ -98,13 +102,13 @@ def resetMiner():
         sleep(1)
         miner_socket.sendall("ascset|0,reboot,0".encode())
         client.publish("events", payload=dumps(
-            {"event": "reset miner"}), qos=1)
+            {"event": "reset miner", "datetime": str(datetime.now())}), qos=2)
         client.publish("reset/status",
-                       payload=dumps({"device": "miner", "status": "success"}), qos=2)
+                       payload=dumps({"device": "miner", "status": "success", "datetime": str(datetime.now())}), qos=2)
     except Exception as e:
         logr.warning(str(e))
         client.publish("reset/status",
-                       payload=dumps({"device": "miner", "status": "failed"}), qos=2)
+                       payload=dumps({"device": "miner", "status": "failed", "datetime": str(datetime.now())}), qos=2)
     finally:
         miner_socket.close()
 
@@ -116,15 +120,15 @@ def resetEnergy():
         message, _ = client_socket.recvfrom(1024)
         if(message.decode() == "reset success"):
             client.publish("events", payload=dumps(
-                {"event": "reset energy"}), qos=1)
+                {"event": "reset energy", "datetime": str(datetime.now())}), qos=2)
             client.publish("reset/status",
-                           payload=dumps({"device": "energy", "status": "success"}), qos=2)
+                           payload=dumps({"device": "energy", "status": "success", "datetime": str(datetime.now())}), qos=2)
         else:
             client.publish("reset/status",
-                           payload=dumps({"device": "energy", "status": "failed"}), qos=2)
+                           payload=dumps({"device": "energy", "status": "failed", "datetime": str(datetime.now())}), qos=2)
     except timeout:
         client.publish("reset/status",
-                       payload=dumps({"device": "energy", "status": "power off"}), qos=2)
+                       payload=dumps({"device": "energy", "status": "power off", "datetime": str(datetime.now())}), qos=2)
 
 
 def resetNodeMcu():
@@ -134,25 +138,25 @@ def resetNodeMcu():
         message, _ = client_socket.recvfrom(1024)
         if(message.decode() == "rebooting"):
             client.publish("events", payload=dumps(
-                {"event": "reset nodemcu"}), qos=1)
+                {"event": "reset nodemcu", "datetime": str(datetime.now())}), qos=2)
             client.publish("reset/status",
-                           payload=dumps({"device": "nodemcu", "status": "success"}), qos=2)
+                           payload=dumps({"device": "nodemcu", "status": "success", "datetime": str(datetime.now())}), qos=2)
         else:
             client.publish("reset/status",
-                           payload=dumps({"device": "nodemcu", "status": "failed"}), qos=2)
+                           payload=dumps({"device": "nodemcu", "status": "failed", "datetime": str(datetime.now())}), qos=2)
     except timeout:
         client.publish("reset/status",
-                       payload=dumps({"device": "energy", "status": "power off"}), qos=2)
+                       payload=dumps({"device": "energy", "status": "power off", "datetime": str(datetime.now())}), qos=2)
 
 
 def resetPi():
     global is_running
     client.publish("events", payload=dumps(
-        {"event": "reset pi"}), qos=1)
+        {"event": "reset pi"}), qos=2)
     client.publish("reset/status",
-                   payload=dumps({"device": "pi", "status": "success"}), qos=2)
+                   payload=dumps({"device": "pi", "status": "success", "datetime": str(datetime.now())}), qos=2)
     client.publish("pi",
-                   payload=dumps({"status": "offline"}), qos=2, retain=True)
+                   payload=dumps({"status": "offline", "datetime": str(datetime.now())}), qos=2, retain=True)
     is_running = False
     client.disconnect()
     sleep(10)

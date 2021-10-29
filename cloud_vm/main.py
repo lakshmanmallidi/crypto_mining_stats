@@ -54,7 +54,7 @@ def on_message(client, userdata, msg):
         if(msg.topic == "events"):
             payload = loads(msg.payload.decode())
             db.session.add(events(event_type=payload["event"],
-                                  event_datetime=datetime.now()))
+                                  event_datetime=datetime.strftime(payload['datetime'], "%Y-%m-%d %H:%M:%S.%f")))
             db.session.commit()
         elif(msg.topic == "stats"):
             sensor_data = loads(msg.payload.decode())
@@ -63,7 +63,7 @@ def on_message(client, userdata, msg):
                                  power=sensor_data["power"],
                                  energy=sensor_data["energy"],
                                  miner_log=sensor_data["miner_log"],
-                                 stat_datetime=datetime.now()))
+                                 stat_datetime=datetime.strftime(sensor_data['datetime'], "%Y-%m-%d %H:%M:%S.%f")))
             db.session.commit()
     except Exception as e:
         print(str(e))
