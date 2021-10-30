@@ -20,7 +20,6 @@ miner_ip = config.get('miner', 'ip')
 miner_port = int(config.get('miner', 'port'))
 sampling_time = int(config.get('sensor', 'sampling_time'))
 database_push_time = int(config.get('sensor', 'db_push_wait'))
-prev_pwr_state = True
 client_socket = socket(AF_INET, SOCK_DGRAM)
 client_socket.settimeout(4)
 logr = get_logger(__file__)
@@ -64,7 +63,6 @@ def relayOff():
 
 
 def powerOn():
-    global prev_pwr_state
     deleteIndFile()
     client.publish("state/power",
                    payload=dumps({"status": "on", "datetime": str(datetime.now())}), qos=2)
@@ -73,7 +71,6 @@ def powerOn():
 
 
 def powerOff():
-    global prev_pwr_state
     createIndFile()
     client.publish("state/power",
                    payload=dumps({"status": "off", "datetime": str(datetime.now())}), qos=2)
@@ -179,7 +176,7 @@ def resetPi():
 
 
 def sensorDataProcessing():
-    global prev_pwr_state, is_running
+    global is_running
     prev_time = time()
     last_push_time = time()
     while is_running:
@@ -188,8 +185,9 @@ def sensorDataProcessing():
                 sensor_data = getSensorData()
                 if(not checkPrevPwrState()):
                     powerOn()
+                    sleep(30)
                 if(time()-last_push_time > database_push_time):
-                    if(prev_pwr_state == True):
+                    if(checkPrevPwrState() == True):
                         miner_lg = getMinerLog()
                     else:
                         miner_lg = "miner powered off"
