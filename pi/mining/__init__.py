@@ -1,6 +1,6 @@
 from datetime import datetime
 from configparser import ConfigParser
-from os import path, system
+from os import path, system, remove
 from socket import socket, AF_INET, SOCK_DGRAM, timeout
 from time import time, sleep
 from json import loads, dumps
@@ -27,6 +27,22 @@ logr = get_logger(__file__)
 is_running = True
 
 
+def checkPrevPwrState():
+    if(path.isfile("power_off.ind")):
+        return False
+    else:
+        return True
+
+
+def createIndFile():
+    with open("power_off.ind", "w"):
+        pass
+
+
+def deleteIndFile():
+    remove("power_off.ind")
+
+
 def relayOn():
     try:
         client_socket.sendto("relayOn".encode(), (sensor_ip, sensor_port))
@@ -49,18 +65,18 @@ def relayOff():
 
 def powerOn():
     global prev_pwr_state
-    prev_pwr_state = True
+    deleteIndFile()
     client.publish("state/power",
-                   payload=dumps({"status": "on", "datetime": str(datetime.now())}), qos=2, retain=True)
+                   payload=dumps({"status": "on", "datetime": str(datetime.now())}), qos=2)
     client.publish("events", payload=dumps(
         {"event": "power on", "datetime": str(datetime.now())}), qos=2)
 
 
 def powerOff():
     global prev_pwr_state
-    prev_pwr_state = False
+    createIndFile()
     client.publish("state/power",
-                   payload=dumps({"status": "off", "datetime": str(datetime.now())}), qos=2, retain=True)
+                   payload=dumps({"status": "off", "datetime": str(datetime.now())}), qos=2)
     client.publish("events", payload=dumps(
         {"event": "power off", "datetime": str(datetime.now())}), qos=2)
 
@@ -170,7 +186,7 @@ def sensorDataProcessing():
         if(time()-prev_time > sampling_time):
             try:
                 sensor_data = getSensorData()
-                if(not prev_pwr_state):
+                if(not checkPrevPwrState()):
                     powerOn()
                 if(time()-last_push_time > database_push_time):
                     if(prev_pwr_state == True):
@@ -180,7 +196,7 @@ def sensorDataProcessing():
                     publishData(sensor_data, miner_lg)
                     last_push_time = time()
             except timeout:
-                if(prev_pwr_state):
+                if(checkPrevPwrState()):
                     powerOff()
             except Exception as e:
                 logr.error(str(e))
