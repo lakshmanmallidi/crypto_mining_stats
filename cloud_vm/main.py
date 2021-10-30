@@ -2,7 +2,7 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from configparser import ConfigParser
-from os import path
+from os import path, statvfs_result
 from json import loads
 import paho.mqtt.client as mqtt
 from time import sleep
@@ -41,6 +41,14 @@ class events(db.Model):
     event_datetime = db.Column(db.DateTime, nullable=False)
 
 
+def checkRecordExists(date_time):
+    cnt = events.query.filter_by(stat_datetime=date_time).count()
+    if(cnt == 0):
+        return False
+    else:
+        return True
+
+
 def on_connect(client, userdata, flags, rc):
     if(rc == 0):
         client.subscribe("events", qos=2)
@@ -58,13 +66,16 @@ def on_message(client, userdata, msg):
             db.session.commit()
         elif(msg.topic == "stats"):
             sensor_data = loads(msg.payload.decode())
-            db.session.add(stats(voltage=sensor_data["voltage"],
-                                 current=sensor_data["current"],
-                                 power=sensor_data["power"],
-                                 energy=sensor_data["energy"],
-                                 miner_log=sensor_data["miner_log"],
-                                 stat_datetime=datetime.strptime(sensor_data['datetime'], "%Y-%m-%d %H:%M:%S.%f")))
-            db.session.commit()
+            date_time = datetime.strptime(
+                sensor_data['datetime'], "%Y-%m-%d %H:%M:%S.%f")
+            if(not checkRecordExists(date_time)):
+                db.session.add(stats(voltage=sensor_data["voltage"],
+                                     current=sensor_data["current"],
+                                     power=sensor_data["power"],
+                                     energy=sensor_data["energy"],
+                                     miner_log=sensor_data["miner_log"],
+                                     stat_datetime=date_time))
+                db.session.commit()
     except Exception as e:
         print(str(e))
     sleep(2)
