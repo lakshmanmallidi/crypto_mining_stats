@@ -67,7 +67,7 @@ def on_message(client, userdata, msg):
         elif(msg.topic == "stats"):
             sensor_data = loads(msg.payload.decode())
             date_time = datetime.strptime(
-                sensor_data['datetime'], "%Y-%m-%d %H:%M:%S.%f")
+                sensor_data['datetime'], "%Y-%m-%d %H:%M:%S.%f").replace(microsecond=0)
             if(not checkRecordExists(date_time)):
                 db.session.add(stats(voltage=sensor_data["voltage"],
                                      current=sensor_data["current"],
