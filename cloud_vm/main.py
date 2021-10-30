@@ -42,7 +42,7 @@ class events(db.Model):
 
 
 def checkRecordExists(date_time):
-    cnt = events.query.filter_by(stat_datetime=date_time).count()
+    cnt = stats.query.filter_by(stat_datetime=date_time).count()
     if(cnt == 0):
         return False
     else:
