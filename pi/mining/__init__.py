@@ -21,7 +21,7 @@ miner_port = int(config.get('miner', 'port'))
 sampling_time = int(config.get('sensor', 'sampling_time'))
 database_push_time = int(config.get('sensor', 'db_push_wait'))
 client_socket = socket(AF_INET, SOCK_DGRAM)
-client_socket.settimeout(4)
+client_socket.settimeout(20)
 logr = get_logger(__file__)
 is_running = True
 
