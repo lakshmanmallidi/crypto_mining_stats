@@ -185,7 +185,7 @@ def sensorDataProcessing():
                 sensor_data = getSensorData()
                 if(not checkPrevPwrState()):
                     powerOn()
-                    sleep(30)
+                    sleep(20)
                 if(time()-last_push_time > database_push_time):
                     if(checkPrevPwrState() == True):
                         miner_lg = getMinerLog()
@@ -196,6 +196,7 @@ def sensorDataProcessing():
             except timeout:
                 if(checkPrevPwrState()):
                     powerOff()
+                    sleep(20)
             except Exception as e:
                 logr.error(str(e))
             prev_time = time()
