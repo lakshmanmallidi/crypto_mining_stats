@@ -21,7 +21,7 @@ def check_echu_issue(log):
         if(log[log.find("ECHU["):(log.find("ECMM[")-1)] != "ECHU[0 0 131073]"):
             if(echu_issue == False):
                 client.publish("issues/ECHU",
-                               payload=dumps({"status": "sick", "datetime": str(datetime.now())}), qos=2)
+                               payload=dumps({"status": "sick", "miner_log": log, "datetime": str(datetime.now())}), qos=2)
                 echu_issue = True
         else:
             if(echu_issue == True):

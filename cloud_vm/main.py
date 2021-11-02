@@ -1,11 +1,10 @@
-from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from configparser import ConfigParser
-from os import path, statvfs_result
+from os import path, replace, statvfs_result
 from json import loads
 import paho.mqtt.client as mqtt
 from time import sleep
+import peewee
 
 config = ConfigParser()
 config.read(path.join(path.dirname(path.abspath(__file__)), 'config.ini'))
@@ -13,40 +12,50 @@ host = config.get('mariadb', 'host')
 user = config.get('mariadb', 'user')
 passwd = config.get('mariadb', 'passwd')
 database = config.get('mariadb', 'database')
+database_push_time = int(config.get('mariadb', 'db_push_wait'))
 mqtt_host = config.get('mqtt_broker', 'host')
 mqtt_user = config.get('mqtt_broker', 'user')
 mqtt_passwd = config.get('mqtt_broker', 'password')
 keep_alive_intervel = config.get('mqtt_broker', 'keep_alive_intervel')
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mariadb+mariadbconnector://{}:{}@{}:3306/{}' \
-    .format(user, passwd, host, database)
 client_user = "cloud_vm"
-db = SQLAlchemy(app)
+db = peewee.MySQLDatabase(database, user=user, password=passwd,
+                          host=host, port=3306)
 
 
-class stats(db.Model):
-    voltage = db.Column(db.Float)
-    current = db.Column(db.Float)
-    power = db.Column(db.Float)
-    energy = db.Column(db.Float)
-    miner_log = db.Column(db.Text)
-    stat_datetime = db.Column(db.DateTime, primary_key=True)
+class stats(peewee.Model):
+    voltage = peewee.FloatField()
+    current = peewee.FloatField()
+    power = peewee.FloatField()
+    energy = peewee.FloatField()
+    miner_log = peewee.TextField()
+    stat_datetime = peewee.DateTimeField(primary_key=True)
+
+    class Meta:
+        database = db
+        db_table = 'stats'
 
 
-class events(db.Model):
-    event_sequence = db.Column(
-        db.Integer, primary_key=True, autoincrement=True)
-    event_type = db.Column(db.String(15), nullable=False)
-    event_log = db.Column(db.String(30))
-    event_datetime = db.Column(db.DateTime, nullable=False)
+class events(peewee.Model):
+    event_sequence = peewee.IntegerField(primary_key=True)
+    event_type = peewee.TextField()
+    event_log = peewee.TextField(null=True)
+    event_datetime = peewee.DateTimeField()
+
+    class Meta:
+        database = db
+        db_table = 'events'
 
 
-def checkRecordExists(date_time):
-    cnt = stats.query.filter_by(stat_datetime=date_time).count()
-    if(cnt == 0):
+def checkRecordExistsUnderTime(date_time):
+    try:
+        last_insertion_date = stats.select().order_by(
+            stats.stat_datetime.desc()).get().stat_datetime
+        if((date_time-last_insertion_date).total_seconds() > database_push_time):
+            return False
+        else:
+            return True
+    except peewee.DoesNotExist as e:
         return False
-    else:
-        return True
 
 
 def on_connect(client, userdata, flags, rc):
@@ -58,31 +67,32 @@ def on_connect(client, userdata, flags, rc):
 
 
 def on_message(client, userdata, msg):
+
     try:
         if(msg.topic == "events"):
             payload = loads(msg.payload.decode())
-            db.session.add(events(event_type=payload["event"],
-                                  event_datetime=datetime.strptime(payload['datetime'], "%Y-%m-%d %H:%M:%S.%f")))
-            db.session.commit()
+            events.create(event_type=payload["event"],
+                          event_datetime=datetime.strptime(payload['datetime'], "%Y-%m-%d %H:%M:%S.%f")).save()
         elif(msg.topic == "stats"):
             sensor_data = loads(msg.payload.decode())
             date_time = datetime.strptime(
-                sensor_data['datetime'], "%Y-%m-%d %H:%M:%S.%f").replace(microsecond=0)
-            if(not checkRecordExists(date_time)):
-                db.session.add(stats(voltage=sensor_data["voltage"],
-                                     current=sensor_data["current"],
-                                     power=sensor_data["power"],
-                                     energy=sensor_data["energy"],
-                                     miner_log=sensor_data["miner_log"],
-                                     stat_datetime=date_time))
-                db.session.commit()
+                sensor_data['datetime'], "%Y-%m-%d %H:%M:%S.%f") \
+                .replace(second=0, microsecond=0)
+            if(not checkRecordExistsUnderTime(date_time)):
+                stats.create(voltage=sensor_data["voltage"],
+                             current=sensor_data["current"],
+                             power=sensor_data["power"],
+                             energy=sensor_data["energy"],
+                             miner_log=sensor_data["miner_log"],
+                             stat_datetime=date_time).save()
     except Exception as e:
         print(str(e))
     sleep(2)
 
 
 try:
-    db.create_all()
+    stats.create_table()
+    events.create_table()
     client = mqtt.Client(client_user)
     client.username_pw_set(mqtt_user, mqtt_passwd)
     client.on_connect = on_connect
