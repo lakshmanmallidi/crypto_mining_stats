@@ -1,3 +1,4 @@
 peewee
 mariadb
 paho-mqtt
+pymysql
