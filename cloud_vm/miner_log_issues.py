@@ -12,13 +12,14 @@ mqtt_user = config.get('mqtt_broker', 'user')
 mqtt_passwd = config.get('mqtt_broker', 'password')
 keep_alive_intervel = config.get('mqtt_broker', 'keep_alive_intervel')
 client_user = "issue_identifier"
+echu_error = config.get('issues', 'ECHU_ERROR')
 echu_issue = False
 
 
 def check_echu_issue(log):
     global echu_issue
     if(log != "error in reading miner log"):
-        if(log[log.find("ECHU["):(log.find("ECMM[")-1)] != "ECHU[0 0 131073]"):
+        if(log[log.find("ECHU["):(log.find("ECMM[")-1)] == echu_error):
             if(echu_issue == False):
                 client.publish("issues/ECHU",
                                payload=dumps({"status": "sick", "verbose": log[log.find("ECHU["):(log.find("ECMM[")-1)], "datetime": str(datetime.now())}), qos=2)
