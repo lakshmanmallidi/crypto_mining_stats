@@ -85,6 +85,14 @@ def getSensorData():
     return loads(message.decode())
 
 
+def pingNodeMcu():
+    response = system("ping -c 1 " + sensor_ip + " > /dev/null")
+    if(response == 0):
+        return True
+    else:
+        return False
+
+
 def getMinerLog():
     miner_socket = socket()
     try:
@@ -194,9 +202,10 @@ def sensorDataProcessing():
                     publishData(sensor_data, miner_lg)
                     last_push_time = time()
             except timeout:
-                if(checkPrevPwrState()):
-                    powerOff()
-                    sleep(20)
+                if(not pingNodeMcu()):
+                    if(checkPrevPwrState()):
+                        powerOff()
+                        sleep(20)
             except Exception as e:
                 logr.error(str(e))
             prev_time = time()
