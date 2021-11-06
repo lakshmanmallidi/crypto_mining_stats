@@ -36,7 +36,7 @@ class stats(peewee.Model):
 
 
 class events(peewee.Model):
-    event_sequence = peewee.IntegerField(primary_key=True)
+    event_sequence = peewee.BigAutoField(primary_key=True)
     event_type = peewee.TextField()
     event_log = peewee.TextField(null=True)
     event_datetime = peewee.DateTimeField()
