@@ -52,11 +52,11 @@ def pushAvgStats():
                 last_insertion_date = stats.select(
                     peewee.fn.MAX(stats.stat_datetime)).scalar()
                 client.publish("stats/avg_voltage",
-                               payload=round(avg_voltage, 2))
+                               payload=round(avg_voltage, 2), retain=True)
                 client.publish("stats/avg_current",
-                               payload=round(avg_current, 2))
+                               payload=round(avg_current, 2), retain=True)
                 client.publish("stats/last_insert_at",
-                               payload=str(last_insertion_date))
+                               payload=str(last_insertion_date), retain=True)
                 prev_time = time()
             sleep(stats_push_intervel-5)
         except Exception as e:
