@@ -17,13 +17,13 @@ def relayOn(relayPin):
     if(not isFileExists()):
         with open("idx", "w"):
             pass
-    relayPin.on()
+    relayPin.off()
 
 
 def relayOff(relayPin):
     if(isFileExists()):
         os.remove("idx")
-    relayPin.off()
+    relayPin.on()
 
 
 def getPinValue(relayPin):
