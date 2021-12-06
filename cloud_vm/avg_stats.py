@@ -58,7 +58,7 @@ def pushAvgStats():
                 client.publish("stats/last_insert_at",
                                payload=str(last_insertion_date), retain=True)
                 prev_time = time()
-            sleep(stats_push_intervel-5)
+                sleep(stats_push_intervel-5)
         except Exception as e:
             print(e)
 
