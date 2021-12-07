@@ -112,7 +112,7 @@ def getMinerLog():
 def publishData(sensor_data, miner_lg):
     data = {'voltage': sensor_data["voltage"], 'current': sensor_data["current"],
             'power': sensor_data["power"], 'energy': sensor_data["energy"],
-            'miner_log': miner_lg, "datetime": str(datetime.now())}
+            'miner_log': miner_lg, "datetime": str(datetime.now().replace(microsecond=0))}
     client.publish("stats", payload=dumps(data), qos=2)
 
 
