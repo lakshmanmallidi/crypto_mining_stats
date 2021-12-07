@@ -12,7 +12,7 @@ host = config.get('mariadb', 'host')
 user = config.get('mariadb', 'user')
 passwd = config.get('mariadb', 'passwd')
 database = config.get('mariadb', 'database')
-database_push_time = int(config.get('mariadb', 'db_push_wait'))
+database_push_time = int(config.get('mariadb', 'db_push_wait'))-5
 mqtt_host = config.get('mqtt_broker', 'host')
 mqtt_user = config.get('mqtt_broker', 'user')
 mqtt_passwd = config.get('mqtt_broker', 'password')
@@ -72,11 +72,11 @@ def on_message(client, userdata, msg):
         if(msg.topic == "events"):
             payload = loads(msg.payload.decode())
             events.create(event_type=payload["event"],
-                          event_datetime=datetime.strptime(payload['datetime'], "%Y-%m-%d %H:%M:%S.%f")).save()
+                          event_datetime=datetime.strptime(payload['datetime'], "%Y-%m-%d %H:%M:%S")).save()
         elif(msg.topic == "stats"):
             sensor_data = loads(msg.payload.decode())
             date_time = datetime.strptime(
-                sensor_data['datetime'], "%Y-%m-%d %H:%M:%S.%f") \
+                sensor_data['datetime'], "%Y-%m-%d %H:%M:%S") \
                 .replace(second=0, microsecond=0)
             if(not checkRecordExistsUnderTime(date_time)):
                 stats.create(voltage=sensor_data["voltage"],
