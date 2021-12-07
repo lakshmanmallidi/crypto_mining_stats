@@ -65,7 +65,7 @@ def relayOff():
 def powerOn():
     deleteIndFile()
     client.publish("state/power",
-                   payload=dumps({"status": "on", "datetime": str(datetime.now())}), qos=2)
+                   payload=dumps({"status": "on", "datetime": str(datetime.now())}), qos=2, retain=True)
     client.publish("events", payload=dumps(
         {"event": "power on", "datetime": str(datetime.now())}), qos=2)
 
@@ -73,7 +73,7 @@ def powerOn():
 def powerOff():
     createIndFile()
     client.publish("state/power",
-                   payload=dumps({"status": "off", "datetime": str(datetime.now())}), qos=2)
+                   payload=dumps({"status": "off", "datetime": str(datetime.now())}), qos=2, retain=True)
     client.publish("events", payload=dumps(
         {"event": "power off", "datetime": str(datetime.now())}), qos=2)
 
