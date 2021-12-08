@@ -1,3 +1,4 @@
+from timerThread import RepeatedTimer
 from datetime import datetime, timedelta
 from configparser import ConfigParser
 from os import path, stat
@@ -5,8 +6,6 @@ from select import select
 import paho.mqtt.client as mqtt
 from time import sleep, time
 import peewee
-from threading import Thread
-from timerThread import RepeatedTimer
 
 config = ConfigParser()
 config.read(path.join(path.dirname(path.abspath(__file__)), 'config.ini'))
@@ -74,7 +73,8 @@ def on_connect(client, userdata, flags, rc):
 
 
 try:
-    avg_stats_pusher = RepeatedTimer(stats_push_intervel, pushAvgStats)
+    avg_stats_pusher = RepeatedTimer(
+        stats_push_intervel, pushAvgStats)
     last_insertion_pusher = RepeatedTimer(
         database_push_time, pushLastDbInsertTime)
     client = mqtt.Client(client_user)
