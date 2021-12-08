@@ -9,6 +9,7 @@ from logger import get_logger
 from sensor import relayOff, relayOn, resetEnergy, resetNodeMcu, getSensorData, pingNodeMcu
 from miner import resetMiner, getMinerLog, pingMiner
 from socket import timeout
+from timerThread import RepeatedTimer
 
 config = ConfigParser()
 config.read(path.join(path.dirname(path.abspath(__file__)), 'config.ini'))
@@ -20,6 +21,7 @@ sampling_time = int(config.get('sensor', 'sampling_time'))
 database_push_time = int(config.get('sensor', 'db_push_wait'))
 logr = get_logger(__file__)
 is_running = True
+sensor_data = {"voltage": 220, "current": 16, "power": 3200, "energy": 100}
 
 
 def checkPrevPwrState():
@@ -67,6 +69,8 @@ def resetPi():
     client.publish("pi",
                    payload=dumps({"status": "offline"}), qos=2, retain=True)
     is_running = False
+    sensor_thread.stop()
+    pwr_thread.stop()
     client.disconnect()
     sleep(10)
 
@@ -138,30 +142,28 @@ def relayOffCntrl():
             {"event": "relay off", "datetime": str(datetime.now())}), qos=2)
 
 
-def sensorDataProcessing():
-    global is_running
-    prev_time = time()
-    last_push_time = time()
-    while is_running:
-        if(time()-prev_time > sampling_time):
-            try:
-                sensor_data = getSensorData()
-                if(not checkPrevPwrState()):
-                    powerOn()
-                    sleep(20)
-                if(time()-last_push_time > database_push_time):
-                    miner_lg = getMinerLog()
-                    publishData(sensor_data, miner_lg)
-                    last_push_time = time()
-            except timeout:
-                if(not (pingNodeMcu() or pingMiner())):
-                    if(checkPrevPwrState()):
-                        powerOff()
-                        sleep(20)
-            except Exception as e:
-                logr.error("sensorDataProcessing:|:"+str(e))
-            prev_time = time()
-        sleep(1)
+def sensorDataThread():
+    try:
+        miner_lg = "miner powered off"
+        if(checkPrevPwrState()):
+            miner_lg = getMinerLog()
+            publishData(sensor_data, miner_lg)
+    except Exception as e:
+        logr.error("sensorDataThread:|:"+str(e))
+
+
+def powerInfoThread():
+    global sensor_data
+    try:
+        sensor_data = getSensorData()
+        if(not checkPrevPwrState()):
+            powerOn()
+    except timeout:
+        if(not (pingNodeMcu() or pingMiner())):
+            if(checkPrevPwrState()):
+                powerOff()
+    except Exception as e:
+        logr.error("powerInfoThread:|:"+str(e))
 
 
 def on_connect(client, userdata, flags, rc):
@@ -170,7 +172,8 @@ def on_connect(client, userdata, flags, rc):
                        payload=dumps({"status": "online"}), qos=2, retain=True)
         client.subscribe("reset", qos=2)
         client.subscribe("state/relay", qos=2)
-        Thread(target=sensorDataProcessing, args=()).start()
+        pwr_thread.start()
+        sensor_thread.start()
     else:
         logr.warning("unable to connect to mqtt broker")
 
@@ -198,6 +201,8 @@ def on_message(client, userdata, msg):
 
 
 try:
+    pwr_thread = RepeatedTimer(sampling_time, powerInfoThread)
+    sensor_thread = RepeatedTimer(database_push_time, sensorDataThread)
     client = mqtt.Client("raspi")
     client.username_pw_set(mqtt_user, mqtt_passwd)
     client.on_connect = on_connect
