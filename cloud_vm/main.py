@@ -19,7 +19,7 @@ mqtt_passwd = config.get('mqtt_broker', 'password')
 keep_alive_intervel = config.get('mqtt_broker', 'keep_alive_intervel')
 client_user = "cloud_vm"
 db = peewee.MySQLDatabase(database, user=user, password=passwd,
-                          host=host, port=3306)
+                          host=host, port=3306,autoconnect=False)
 
 
 class stats(peewee.Model):
@@ -67,7 +67,7 @@ def on_connect(client, userdata, flags, rc):
 
 
 def on_message(client, userdata, msg):
-
+    db.connect(reuse_if_open=True)
     try:
         if(msg.topic == "events"):
             payload = loads(msg.payload.decode())
@@ -87,12 +87,16 @@ def on_message(client, userdata, msg):
                              stat_datetime=date_time).save()
     except Exception as e:
         print(str(e))
+    finally:
+        db.close()
     sleep(2)
 
 
 try:
-    stats.create_table()
-    events.create_table()
+    with db:
+        db.connect(reuse_if_open=True)
+        stats.create_table()
+        events.create_table()
     client = mqtt.Client(client_user)
     client.username_pw_set(mqtt_user, mqtt_passwd)
     client.on_connect = on_connect
